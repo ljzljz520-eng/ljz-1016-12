@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardBody, 
-  Input, 
-  Button, 
+import {
+  Card,
+  CardBody,
+  Input,
   Checkbox,
-  Divider 
+  Spinner
 } from '@heroui/react';
 import { Server, User, Lock, Eye, EyeOff, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -24,12 +23,13 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   
   const router = useRouter();
-  const { setAuth, isAuthenticated, loadFromStorage } = useAuthStore();
+  const { setAuth, isAuthenticated, checkSession, loading: sessionLoading } = useAuthStore();
 
   useEffect(() => {
     setMounted(true);
-    loadFromStorage();
-  }, [loadFromStorage]);
+    // 用服务端 Session 判断是否已登录（刷新后仍保持登录）
+    checkSession();
+  }, [checkSession]);
 
   useEffect(() => {
     if (mounted && isAuthenticated) {
@@ -39,24 +39,25 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!username.trim()) {
       toast.warning('请输入用户名');
       return;
     }
-    
+
     if (!password.trim()) {
       toast.warning('请输入密码');
       return;
     }
 
     setLoading(true);
-    
+
     try {
-      const response = await api.login(username, password);
-      
+      // 后端校验账号密码，成功后由后端写入 Session（sessionid HttpOnly Cookie）
+      const response = await api.login(username, password, rememberMe);
+
       if (response.success && response.data) {
-        setAuth(response.data.user, response.data.token);
+        setAuth(response.data.user);
         toast.success('登录成功，欢迎回来！');
         router.push('/dashboard');
       } else {
@@ -69,8 +70,13 @@ export default function LoginPage() {
     }
   };
 
-  if (!mounted) {
-    return null;
+  // 会话未确认前显示加载态；已登录时等待重定向，避免闪现登录表单
+  if (!mounted || sessionLoading || isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner size="lg" color="primary" />
+      </div>
+    );
   }
 
   return (
@@ -196,6 +202,17 @@ export default function LoginPage() {
                     input: 'text-gray-700 placeholder:text-gray-300',
                   }}
                 />
+
+                <div className="flex items-center justify-between pt-1">
+                  <Checkbox
+                    size="sm"
+                    isSelected={rememberMe}
+                    onValueChange={setRememberMe}
+                    classNames={{ label: 'text-sm text-gray-500' }}
+                  >
+                    记住我
+                  </Checkbox>
+                </div>
 
                 <div className="pt-1">
                   <button

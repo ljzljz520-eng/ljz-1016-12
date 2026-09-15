@@ -12,21 +12,24 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated, loadFromStorage } = useAuthStore();
+  const { isAuthenticated, loading, checkSession } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    loadFromStorage();
     setMounted(true);
-  }, [loadFromStorage]);
+    // 刷新页面后内存状态清空，请求会带上 sessionid Cookie，
+    // 由后端 Session 判定登录态，而不是依赖前端本地标记
+    checkSession();
+  }, [checkSession]);
 
   useEffect(() => {
-    if (mounted && !isAuthenticated) {
+    if (mounted && !loading && !isAuthenticated) {
       router.replace('/login');
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [mounted, loading, isAuthenticated, router]);
 
-  if (!mounted) {
+  // 服务端会话未确认前，展示加载态，避免受保护内容闪烁
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Spinner size="lg" color="primary" />

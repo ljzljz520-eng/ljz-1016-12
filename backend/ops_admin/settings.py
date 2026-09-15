@@ -107,10 +107,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS设置
 CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS', 
+    'CORS_ALLOWED_ORIGINS',
     'http://localhost:3000,http://127.0.0.1:3000'
 ).split(',')
 
+# 允许跨域请求携带 Cookie（sessionid / csrftoken）
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
@@ -125,10 +126,32 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# CSRF设置：前端 SPA 运行在独立端口（跨端口属于跨源），需加入可信来源
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000'
+).split(',')
+
+# Session 设置（基于数据库会话，HttpOnly Cookie 下发 sessionid）
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_NAME = 'sessionid'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+# 勾选“记住我”时会话有效期（秒），默认 2 周
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', str(60 * 60 * 24 * 14)))
+
+# CSRF Cookie 设置：前端需读取后通过 X-CSRFToken 请求头回传，不能设为 HttpOnly
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False').lower() == 'true'
+
 # REST Framework配置
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'api.authentication.JWTAuthentication',
+        # 使用 Django Session 认证（sessionid Cookie + CSRF 校验）
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -138,10 +161,6 @@ REST_FRAMEWORK = {
     ],
     'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
 }
-
-# JWT配置
-JWT_SECRET_KEY = os.environ.get('SECRET_KEY', 'jwt-secret-key')
-JWT_EXPIRATION_HOURS = 24
 
 # Logging配置
 LOGGING = {

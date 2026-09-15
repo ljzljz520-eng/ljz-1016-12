@@ -2,10 +2,11 @@
 API Views - 视图层
 """
 import logging
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.db.models import Avg
-from rest_framework import status, viewsets
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import csrf_protect
+from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -16,7 +17,6 @@ from .serializers import (
     AlertSerializer, TaskSerializer, OperationLogSerializer,
     DashboardStatsSerializer
 )
-from .authentication import generate_token
 
 logger = logging.getLogger(__name__)
 
@@ -31,28 +31,47 @@ def api_response(success: bool, data=None, message: str = '', code: int = 200):
     }, status=code if code < 400 else code)
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def csrf_token(request):
+    """下发 CSRF Token（同时写入 csrftoken Cookie）。
+
+    前端在登录前先请求该接口，之后所有 POST/PUT/PATCH/DELETE
+    请求都需要通过 X-CSRFToken 请求头回传该 Token。
+    """
+    return api_response(True, data={'csrfToken': get_token(request)})
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_protect
 def login_view(request):
-    """用户登录"""
+    """用户登录：校验账号密码，成功后写入 Django Session。"""
     serializer = LoginSerializer(data=request.data)
-    
+
     if not serializer.is_valid():
         return api_response(False, message='请输入用户名和密码', code=400)
-    
+
     username = serializer.validated_data['username']
     password = serializer.validated_data['password']
-    
+
     user = authenticate(username=username, password=password)
-    
+
     if user is None:
         return api_response(False, message='用户名或密码错误', code=401)
-    
+
     if not user.is_active:
         return api_response(False, message='用户已被禁用', code=403)
-    
-    token = generate_token(user)
-    
+
+    # 写入服务端 Session，响应中通过 Set-Cookie 下发 sessionid
+    # login() 内部会轮换 session key，避免会话固定攻击
+    auth_login(request, user)
+
+    # “记住我”使用浏览器级会话 Cookie；否则关闭浏览器后过期
+    if not serializer.validated_data.get('remember', False):
+        request.session.set_expiry(0)
+    request.session.save()
+
     # 记录登录日志
     OperationLog.objects.create(
         action='用户登录',
@@ -60,11 +79,10 @@ def login_view(request):
         user=user,
         ip_address=get_client_ip(request)
     )
-    
+
     logger.info(f"用户 {username} 登录成功")
-    
+
     return api_response(True, data={
-        'token': token,
         'user': UserSerializer(user).data
     }, message='登录成功')
 
@@ -72,21 +90,29 @@ def login_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_info(request):
-    """获取当前用户信息"""
+    """获取当前登录用户信息（基于 Session 判定登录态）"""
     return api_response(True, data=UserSerializer(request.user).data)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
-    """用户登出"""
-    # 记录登出日志
+    """用户登出：清空服务端 Session 并使 sessionid Cookie 失效。"""
+    username = request.user.username
+
+    # 记录登出日志（flush 之后 request.user 将变为匿名用户，需先记录）
     OperationLog.objects.create(
         action='用户登出',
-        description=f'用户 {request.user.username} 退出系统',
+        description=f'用户 {username} 退出系统',
         user=request.user,
         ip_address=get_client_ip(request)
     )
+
+    # 清空服务端会话数据、轮换 session key，
+    # SessionMiddleware 会在响应中使 sessionid Cookie 失效
+    auth_logout(request)
+
+    logger.info(f"用户 {username} 退出系统")
     return api_response(True, message='登出成功')
 
 

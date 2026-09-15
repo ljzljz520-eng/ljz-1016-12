@@ -14,7 +14,7 @@
 
 ### Backend
 - **框架**: Django 4.2 + Django REST Framework
-- **认证**: JWT (PyJWT)
+- **认证**: Django Session + CSRF（HttpOnly Cookie）
 - **数据库**: MySQL 8.0
 - **服务器**: Gunicorn
 
@@ -49,9 +49,10 @@
 ## ✨ 核心功能
 
 ### 1. 用户认证
-- JWT Token 认证
+- Django Session 会话认证（后端校验账号密码，登录态存于服务端，sessionid 通过 HttpOnly Cookie 下发）
+- CSRF 保护（POST/PUT/DELETE 需携带 X-CSRFToken 头）
 - 登录/登出功能
-- 会话持久化
+- 刷新浏览器后凭 Cookie 中的 sessionid 保持登录；登出时清空服务端会话
 
 ### 2. 仪表盘
 - 服务器状态概览
@@ -83,7 +84,7 @@ taskId1016/
 │       ├── views.py        # 视图
 │       ├── serializers.py  # 序列化器
 │       ├── urls.py         # 路由
-│       └── authentication.py # JWT 认证
+│       └── exceptions.py   # 自定义异常处理
 └── frontend/               # Next.js 前端
     ├── Dockerfile
     ├── package.json

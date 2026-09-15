@@ -7,19 +7,17 @@ import { Spinner } from '@heroui/react';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated, loadFromStorage } = useAuthStore();
+  const { isAuthenticated, loading, checkSession } = useAuthStore();
 
   useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
+    checkSession();
+  }, [checkSession]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      router.replace('/dashboard');
-    } else {
-      router.replace('/login');
-    }
-  }, [isAuthenticated, router]);
+    if (loading) return;
+    // 登录态完全由服务端 Session 决定
+    router.replace(isAuthenticated ? '/dashboard' : '/login');
+  }, [isAuthenticated, loading, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

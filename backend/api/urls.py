@@ -13,6 +13,7 @@ router.register(r'logs', views.OperationLogViewSet)
 
 urlpatterns = [
     # 认证相关
+    path('auth/csrf/', views.csrf_token, name='csrf-token'),
     path('auth/login/', views.login_view, name='login'),
     path('auth/logout/', views.logout_view, name='logout'),
     path('auth/user/', views.user_info, name='user-info'),

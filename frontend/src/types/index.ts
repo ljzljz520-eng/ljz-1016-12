@@ -94,6 +94,5 @@ export interface ApiResponse<T> {
 
 // 登录响应
 export interface LoginResponse {
-  token: string;
   user: User;
 }

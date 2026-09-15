@@ -18,6 +18,7 @@ class LoginSerializer(serializers.Serializer):
     """登录序列化器"""
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(max_length=128, write_only=True)
+    remember = serializers.BooleanField(required=False, default=False)
 
 
 class ServerSerializer(serializers.ModelSerializer):
